@@ -45,7 +45,6 @@ export function MemoryAllocationVisualizer({
 
   return (
     <div className="space-y-4 sm:space-y-6 py-4">
-
       {/* Statistics */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <Card>
@@ -82,15 +81,21 @@ export function MemoryAllocationVisualizer({
         </CardHeader>
         <CardContent>
           <div className="space-y-2 sm:space-y-3">
-            {resultPartitions.map((partition) => {
+            {resultPartitions.map((partition, index) => {
               const allocation = getAllocationForPartition(partition.id);
               const isAllocated = !!allocation;
-
+              
+              // Untuk yang dialokasi: tampilkan ukuran ASLI
+              // Untuk yang kosong (hasil split): tampilkan ukuran sisa
+              const displaySize = isAllocated 
+                ? (partition.originalSize || partition.size) 
+                : partition.size;
+              
               return (
                 <div key={partition.id} className="space-y-1">
                   <div className="flex items-center gap-2 sm:gap-3">
                     <div className="w-12 sm:w-16 text-right text-gray-600 text-xs sm:text-sm">
-                      {partition.size} MB
+                      {displaySize}
                     </div>
                     <div className="flex-1 h-10 sm:h-12 border-2 border-gray-300 rounded-lg overflow-hidden bg-white">
                       {isAllocated ? (
@@ -103,12 +108,8 @@ export function MemoryAllocationVisualizer({
                         </div>
                       )}
                     </div>
-                    <div className="w-16 sm:w-24">
-                      {isAllocated && (
-                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300 text-xs">
-                          {allocation.process.name}
-                        </Badge>
-                      )}
+                    <div className="w-12 sm:w-16 text-left text-gray-600 text-xs sm:text-sm">
+                      {isAllocated ? allocation.process.size : ''}
                     </div>
                   </div>
                 </div>
@@ -143,7 +144,7 @@ export function MemoryAllocationVisualizer({
                     {allocations.map((allocation, idx) => (
                       <TableRow key={idx}>
                         <TableCell className="text-xs sm:text-sm">{allocation.process.name}</TableCell>
-                        <TableCell className="text-xs sm:text-sm">{allocation.process.size} MB</TableCell>
+                        <TableCell className="text-xs sm:text-sm">{allocation.process.size} KB</TableCell>
                         <TableCell className="text-xs sm:text-sm">
                           Partisi {allocation.partition.originalIndex + 1}
                         </TableCell>
@@ -189,7 +190,7 @@ export function MemoryAllocationVisualizer({
                       {waiting.map((process, idx) => (
                         <TableRow key={idx}>
                           <TableCell className="text-xs sm:text-sm">{process.name}</TableCell>
-                          <TableCell className="text-xs sm:text-sm">{process.size} MB</TableCell>
+                          <TableCell className="text-xs sm:text-sm">{process.size} KB</TableCell>
                           <TableCell>
                             <Badge variant="destructive" className="text-xs">Waiting</Badge>
                           </TableCell>
@@ -226,7 +227,7 @@ export function MemoryAllocationVisualizer({
             </div>
             <div>
               <div className="text-gray-600 mb-1 text-xs sm:text-sm">Fragmentasi Eksternal</div>
-              <div className="text-xl sm:text-2xl text-orange-600">{externalFragmentation} MB</div>
+              <div className="text-xl sm:text-2xl text-orange-600">{externalFragmentation} KB</div>
             </div>
             <div>
               <div className="text-gray-600 mb-1 text-xs sm:text-sm">Efisiensi</div>

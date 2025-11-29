@@ -27,6 +27,7 @@ export interface Partition {
   size: number;
   originalIndex: number;
   parentId?: string; // untuk tracking partisi hasil split
+  originalSize?: number; // ukuran partisi ASLI sebelum di-split
 }
 
 export interface Allocation {
@@ -42,9 +43,23 @@ export interface AllocationResult {
 }
 
 export default function App() {
-  const [processes, setProcesses] = useState<Process[]>([]);
+  const [processes, setProcesses] = useState<Process[]>([
+    { id: "1", name: "p1", size: 312 },
+    { id: "2", name: "p2", size: 198 },
+    { id: "3", name: "p3", size: 80 },
+    { id: "4", name: "p4", size: 486 },
+    { id: "5", name: "p5", size: 550 },
+    { id: "6", name: "p6", size: 266 },
+  ]);
 
-  const [partitions, setPartitions] = useState<Partition[]>([]);
+  const [partitions, setPartitions] = useState<Partition[]>([
+    { id: "1", size: 100, originalIndex: 0 },
+    { id: "2", size: 500, originalIndex: 1 },
+    { id: "3", size: 200, originalIndex: 2 },
+    { id: "4", size: 600, originalIndex: 3 },
+    { id: "5", size: 600, originalIndex: 4 },
+    { id: "6", size: 400, originalIndex: 5 },
+  ]);
 
   const addProcess = (name: string, size: number) => {
     const newProcess: Process = {
@@ -95,6 +110,7 @@ export default function App() {
             ...part,
             size: process.size,
             id: `${part.id}-alloc-${Date.now()}`,
+            originalSize: part.originalSize || part.size, // Simpan ukuran asli
           };
 
           allocations.push({
@@ -175,6 +191,7 @@ export default function App() {
           ...part,
           size: process.size,
           id: `${part.id}-alloc-${Date.now()}`,
+          originalSize: part.originalSize || part.size, // Simpan ukuran asli
         };
 
         allocations.push({
@@ -247,6 +264,7 @@ export default function App() {
           ...part,
           size: process.size,
           id: `${part.id}-alloc-${Date.now()}`,
+          originalSize: part.originalSize || part.size, // Simpan ukuran asli
         };
 
         allocations.push({
