@@ -81,7 +81,7 @@ export function MemoryAllocationVisualizer({
         </CardHeader>
         <CardContent>
           <div className="space-y-2 sm:space-y-3">
-            {resultPartitions.map((partition, index) => {
+            {resultPartitions.map((partition, _index) => {
               const allocation = getAllocationForPartition(partition.id);
               const isAllocated = !!allocation;
               
