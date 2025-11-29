@@ -26,12 +26,19 @@ export interface Partition {
   id: string;
   size: number;
   originalIndex: number;
+  parentId?: string; // untuk tracking partisi hasil split
 }
 
 export interface Allocation {
   process: Process;
   partition: Partition;
   internalFragmentation: number;
+}
+
+export interface AllocationResult {
+  allocations: Allocation[];
+  waiting: Process[];
+  resultPartitions: Partition[]; // Partisi hasil alokasi (termasuk yang di-split)
 }
 
 export default function App() {
@@ -69,27 +76,49 @@ export default function App() {
   // ALGORTIMA SUDAH DIPERBAIKI
   // -------------------------
 
-  const firstFit = () => {
+  const firstFit = (): AllocationResult => {
     const allocations: Allocation[] = [];
     const waiting: Process[] = [];
+    const resultPartitions: Partition[] = [];
 
-    const available = partitions.map((p) => ({
-      ...p,
-      allocated: false,
-    }));
+    // Copy partisi untuk modifikasi dinamis
+    let availablePartitions = [...partitions];
 
     processes.forEach((process) => {
       let allocated = false;
 
-      for (let i = 0; i < available.length; i++) {
-        const part = available[i];
-        if (!part.allocated && part.size >= process.size) {
+      for (let i = 0; i < availablePartitions.length; i++) {
+        const part = availablePartitions[i];
+        if (part.size >= process.size) {
+          // Buat partisi untuk proses yang dialokasikan
+          const allocatedPartition: Partition = {
+            ...part,
+            size: process.size,
+            id: `${part.id}-alloc-${Date.now()}`,
+          };
+
           allocations.push({
             process,
-            partition: part,
-            internalFragmentation: part.size - process.size,
+            partition: allocatedPartition,
+            internalFragmentation: 0,
           });
-          part.allocated = true;
+
+          // Jika ada sisa ruang, buat partisi baru
+          const remainingSize = part.size - process.size;
+          if (remainingSize > 0) {
+            const newPartition: Partition = {
+              id: `${part.id}-split-${Date.now()}`,
+              size: remainingSize,
+              originalIndex: part.originalIndex,
+              parentId: part.id,
+            };
+            // Replace partisi lama dengan partisi baru (sisa ruang)
+            availablePartitions[i] = newPartition;
+          } else {
+            // Hapus partisi jika tidak ada sisa
+            availablePartitions.splice(i, 1);
+          }
+
           allocated = true;
           break;
         }
@@ -98,81 +127,171 @@ export default function App() {
       if (!allocated) waiting.push(process);
     });
 
-    return { allocations, waiting };
+    // Bangun daftar partisi hasil (allocated + sisa)
+    partitions.forEach(originalPartition => {
+      const relatedAllocs = allocations.filter(
+        a => a.partition.originalIndex === originalPartition.originalIndex
+      );
+      const relatedRemaining = availablePartitions.find(
+        p => p.originalIndex === originalPartition.originalIndex
+      );
+
+      // Tambahkan partisi yang dialokasikan
+      relatedAllocs.forEach(alloc => {
+        resultPartitions.push(alloc.partition);
+      });
+
+      // Tambahkan partisi sisa jika ada
+      if (relatedRemaining) {
+        resultPartitions.push(relatedRemaining);
+      }
+    });
+
+    return { allocations, waiting, resultPartitions };
   };
 
-  const bestFit = () => {
+  const bestFit = (): AllocationResult => {
     const allocations: Allocation[] = [];
     const waiting: Process[] = [];
-    const available = partitions.map((p) => ({
-      ...p,
-      allocated: false,
-    }));
+    const resultPartitions: Partition[] = [];
+    let availablePartitions = [...partitions];
 
     processes.forEach((process) => {
       let bestIndex = -1;
       let bestSize = Infinity;
 
-      available.forEach((part, idx) => {
-        if (!part.allocated && part.size >= process.size) {
-          if (part.size < bestSize) {
-            bestSize = part.size;
-            bestIndex = idx;
-          }
+      // Cari partisi terkecil yang cukup
+      availablePartitions.forEach((part, idx) => {
+        if (part.size >= process.size && part.size < bestSize) {
+          bestSize = part.size;
+          bestIndex = idx;
         }
       });
 
       if (bestIndex !== -1) {
-        const part = available[bestIndex];
+        const part = availablePartitions[bestIndex];
+        
+        const allocatedPartition: Partition = {
+          ...part,
+          size: process.size,
+          id: `${part.id}-alloc-${Date.now()}`,
+        };
+
         allocations.push({
           process,
-          partition: part,
-          internalFragmentation: part.size - process.size,
+          partition: allocatedPartition,
+          internalFragmentation: 0,
         });
-        part.allocated = true;
+
+        // Split partisi jika ada sisa
+        const remainingSize = part.size - process.size;
+        if (remainingSize > 0) {
+          const newPartition: Partition = {
+            id: `${part.id}-split-${Date.now()}`,
+            size: remainingSize,
+            originalIndex: part.originalIndex,
+            parentId: part.id,
+          };
+          availablePartitions[bestIndex] = newPartition;
+        } else {
+          availablePartitions.splice(bestIndex, 1);
+        }
       } else {
         waiting.push(process);
       }
     });
 
-    return { allocations, waiting };
+    // Bangun daftar partisi hasil
+    partitions.forEach(originalPartition => {
+      const relatedAllocs = allocations.filter(
+        a => a.partition.originalIndex === originalPartition.originalIndex
+      );
+      const relatedRemaining = availablePartitions.find(
+        p => p.originalIndex === originalPartition.originalIndex
+      );
+
+      relatedAllocs.forEach(alloc => {
+        resultPartitions.push(alloc.partition);
+      });
+
+      if (relatedRemaining) {
+        resultPartitions.push(relatedRemaining);
+      }
+    });
+
+    return { allocations, waiting, resultPartitions };
   };
 
-  const worstFit = () => {
+  const worstFit = (): AllocationResult => {
     const allocations: Allocation[] = [];
     const waiting: Process[] = [];
-    const available = partitions.map((p) => ({
-      ...p,
-      allocated: false,
-    }));
+    const resultPartitions: Partition[] = [];
+    let availablePartitions = [...partitions];
 
     processes.forEach((process) => {
       let worstIndex = -1;
       let worstSize = -1;
 
-      available.forEach((part, idx) => {
-        if (!part.allocated && part.size >= process.size) {
-          if (part.size > worstSize) {
-            worstSize = part.size;
-            worstIndex = idx;
-          }
+      // Cari partisi terbesar yang cukup
+      availablePartitions.forEach((part, idx) => {
+        if (part.size >= process.size && part.size > worstSize) {
+          worstSize = part.size;
+          worstIndex = idx;
         }
       });
 
       if (worstIndex !== -1) {
-        const part = available[worstIndex];
+        const part = availablePartitions[worstIndex];
+        
+        const allocatedPartition: Partition = {
+          ...part,
+          size: process.size,
+          id: `${part.id}-alloc-${Date.now()}`,
+        };
+
         allocations.push({
           process,
-          partition: part,
-          internalFragmentation: part.size - process.size,
+          partition: allocatedPartition,
+          internalFragmentation: 0,
         });
-        part.allocated = true;
+
+        // Split partisi jika ada sisa
+        const remainingSize = part.size - process.size;
+        if (remainingSize > 0) {
+          const newPartition: Partition = {
+            id: `${part.id}-split-${Date.now()}`,
+            size: remainingSize,
+            originalIndex: part.originalIndex,
+            parentId: part.id,
+          };
+          availablePartitions[worstIndex] = newPartition;
+        } else {
+          availablePartitions.splice(worstIndex, 1);
+        }
       } else {
         waiting.push(process);
       }
     });
 
-    return { allocations, waiting };
+    // Bangun daftar partisi hasil
+    partitions.forEach(originalPartition => {
+      const relatedAllocs = allocations.filter(
+        a => a.partition.originalIndex === originalPartition.originalIndex
+      );
+      const relatedRemaining = availablePartitions.find(
+        p => p.originalIndex === originalPartition.originalIndex
+      );
+
+      relatedAllocs.forEach(alloc => {
+        resultPartitions.push(alloc.partition);
+      });
+
+      if (relatedRemaining) {
+        resultPartitions.push(relatedRemaining);
+      }
+    });
+
+    return { allocations, waiting, resultPartitions };
   };
 
   // -------------------------
@@ -235,6 +354,7 @@ export default function App() {
                   allocations={ff.allocations}
                   waiting={ff.waiting}
                   partitions={partitions}
+                  resultPartitions={ff.resultPartitions}
                   processes={processes}
                 />
               </TabsContent>
@@ -245,6 +365,7 @@ export default function App() {
                   allocations={bf.allocations}
                   waiting={bf.waiting}
                   partitions={partitions}
+                  resultPartitions={bf.resultPartitions}
                   processes={processes}
                 />
               </TabsContent>
@@ -255,6 +376,7 @@ export default function App() {
                   allocations={wf.allocations}
                   waiting={wf.waiting}
                   partitions={partitions}
+                  resultPartitions={wf.resultPartitions}
                   processes={processes}
                 />
               </TabsContent>
