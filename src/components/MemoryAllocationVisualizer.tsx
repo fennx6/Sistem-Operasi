@@ -141,7 +141,7 @@ export function MemoryAllocationVisualizer({
                     {allocations.map((allocation, idx) => (
                       <TableRow key={idx}>
                         <TableCell className="text-xs sm:text-sm">{allocation.process.name}</TableCell>
-                        <TableCell className="text-xs sm:text-sm">{allocation.process.size} KB</TableCell>
+                        <TableCell className="text-xs sm:text-sm">{allocation.process.size} MB</TableCell>
                         <TableCell className="text-xs sm:text-sm">
                           Partisi {allocation.partition.originalIndex + 1}
                         </TableCell>
@@ -187,7 +187,7 @@ export function MemoryAllocationVisualizer({
                       {waiting.map((process, idx) => (
                         <TableRow key={idx}>
                           <TableCell className="text-xs sm:text-sm">{process.name}</TableCell>
-                          <TableCell className="text-xs sm:text-sm">{process.size} KB</TableCell>
+                          <TableCell className="text-xs sm:text-sm">{process.size} MB</TableCell>
                           <TableCell>
                             <Badge variant="destructive" className="text-xs">Waiting</Badge>
                           </TableCell>
@@ -224,7 +224,7 @@ export function MemoryAllocationVisualizer({
             </div>
             <div>
               <div className="text-gray-600 mb-1 text-xs sm:text-sm">Fragmentasi Eksternal</div>
-              <div className="text-xl sm:text-2xl text-orange-600">{externalFragmentation} KB</div>
+              <div className="text-xl sm:text-2xl text-orange-600">{externalFragmentation} MB</div>
             </div>
             <div>
               <div className="text-gray-600 mb-1 text-xs sm:text-sm">Efisiensi</div>
