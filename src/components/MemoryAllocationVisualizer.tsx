@@ -84,9 +84,6 @@ export function MemoryAllocationVisualizer({
             {resultPartitions.map((partition, _index) => {
               const allocation = getAllocationForPartition(partition.id);
               const isAllocated = !!allocation;
-              
-              // Untuk yang dialokasi: tampilkan ukuran ASLI
-              // Untuk yang kosong (hasil split): tampilkan ukuran sisa
               const displaySize = isAllocated 
                 ? (partition.originalSize || partition.size) 
                 : partition.size;

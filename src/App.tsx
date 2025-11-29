@@ -62,9 +62,7 @@ export default function App() {
   }, [partitions]);
 
 
-  // ================================
-  // FUNGSI PROCESS
-  // ================================
+  // FUNGSI PROCESS // 
   const addProcess = (name: string, size: number) => {
     const newProcess: Process = {
       id: Date.now().toString(),
