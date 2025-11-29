@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ProcessInputForm } from "./components/ProcessInputForm";
 import { PartitionInputForm } from "./components/PartitionInputForm";
 import { MemoryAllocationVisualizer } from "./components/MemoryAllocationVisualizer";
@@ -26,8 +26,8 @@ export interface Partition {
   id: string;
   size: number;
   originalIndex: number;
-  parentId?: string; // untuk tracking partisi hasil split
-  originalSize?: number; // ukuran partisi ASLI sebelum di-split
+  parentId?: string;
+  originalSize?: number;
 }
 
 export interface Allocation {
@@ -39,28 +39,32 @@ export interface Allocation {
 export interface AllocationResult {
   allocations: Allocation[];
   waiting: Process[];
-  resultPartitions: Partition[]; // Partisi hasil alokasi (termasuk yang di-split)
+  resultPartitions: Partition[];
 }
 
 export default function App() {
-  const [processes, setProcesses] = useState<Process[]>([
-    { id: "1", name: "p1", size: 312 },
-    { id: "2", name: "p2", size: 198 },
-    { id: "3", name: "p3", size: 80 },
-    { id: "4", name: "p4", size: 486 },
-    { id: "5", name: "p5", size: 550 },
-    { id: "6", name: "p6", size: 266 },
-  ]);
+  const [processes, setProcesses] = useState<Process[]>(() => {
+    const saved = localStorage.getItem("processes");
+    return saved ? JSON.parse(saved) : [];
+  });
 
-  const [partitions, setPartitions] = useState<Partition[]>([
-    { id: "1", size: 100, originalIndex: 0 },
-    { id: "2", size: 500, originalIndex: 1 },
-    { id: "3", size: 200, originalIndex: 2 },
-    { id: "4", size: 600, originalIndex: 3 },
-    { id: "5", size: 600, originalIndex: 4 },
-    { id: "6", size: 400, originalIndex: 5 },
-  ]);
+  const [partitions, setPartitions] = useState<Partition[]>(() => {
+    const saved = localStorage.getItem("partitions");
+    return saved ? JSON.parse(saved) : [];
+  });
 
+  useEffect(() => {
+    localStorage.setItem("processes", JSON.stringify(processes));
+  }, [processes]);
+
+  useEffect(() => {
+    localStorage.setItem("partitions", JSON.stringify(partitions));
+  }, [partitions]);
+
+
+  // ================================
+  // FUNGSI PROCESS
+  // ================================
   const addProcess = (name: string, size: number) => {
     const newProcess: Process = {
       id: Date.now().toString(),
@@ -74,6 +78,10 @@ export default function App() {
     setProcesses(processes.filter((p) => p.id !== id));
   };
 
+
+  // ================================
+  // FUNGSI PARTITION
+  // ================================
   const addPartition = (size: number) => {
     const newPartition: Partition = {
       id: Date.now().toString(),
@@ -87,16 +95,14 @@ export default function App() {
     setPartitions(partitions.filter((p) => p.id !== id));
   };
 
-  // -------------------------
-  // ALGORTIMA SUDAH DIPERBAIKI
-  // -------------------------
 
+  // ================================
+  // FIRST FIT
+  // ================================
   const firstFit = (): AllocationResult => {
     const allocations: Allocation[] = [];
     const waiting: Process[] = [];
     const resultPartitions: Partition[] = [];
-
-    // Copy partisi untuk modifikasi dinamis
     let availablePartitions = [...partitions];
 
     processes.forEach((process) => {
@@ -105,12 +111,11 @@ export default function App() {
       for (let i = 0; i < availablePartitions.length; i++) {
         const part = availablePartitions[i];
         if (part.size >= process.size) {
-          // Buat partisi untuk proses yang dialokasikan
           const allocatedPartition: Partition = {
             ...part,
             size: process.size,
             id: `${part.id}-alloc-${Date.now()}`,
-            originalSize: part.originalSize || part.size, // Simpan ukuran asli
+            originalSize: part.originalSize || part.size,
           };
 
           allocations.push({
@@ -119,19 +124,15 @@ export default function App() {
             internalFragmentation: 0,
           });
 
-          // Jika ada sisa ruang, buat partisi baru
           const remainingSize = part.size - process.size;
           if (remainingSize > 0) {
-            const newPartition: Partition = {
+            availablePartitions[i] = {
               id: `${part.id}-split-${Date.now()}`,
               size: remainingSize,
               originalIndex: part.originalIndex,
               parentId: part.id,
             };
-            // Replace partisi lama dengan partisi baru (sisa ruang)
-            availablePartitions[i] = newPartition;
           } else {
-            // Hapus partisi jika tidak ada sisa
             availablePartitions.splice(i, 1);
           }
 
@@ -143,7 +144,6 @@ export default function App() {
       if (!allocated) waiting.push(process);
     });
 
-    // Bangun daftar partisi hasil (allocated + sisa)
     partitions.forEach(originalPartition => {
       const relatedAllocs = allocations.filter(
         a => a.partition.originalIndex === originalPartition.originalIndex
@@ -152,20 +152,17 @@ export default function App() {
         p => p.originalIndex === originalPartition.originalIndex
       );
 
-      // Tambahkan partisi yang dialokasikan
-      relatedAllocs.forEach(alloc => {
-        resultPartitions.push(alloc.partition);
-      });
-
-      // Tambahkan partisi sisa jika ada
-      if (relatedRemaining) {
-        resultPartitions.push(relatedRemaining);
-      }
+      relatedAllocs.forEach(alloc => resultPartitions.push(alloc.partition));
+      if (relatedRemaining) resultPartitions.push(relatedRemaining);
     });
 
     return { allocations, waiting, resultPartitions };
   };
 
+
+  // ================================
+  // BEST FIT
+  // ================================
   const bestFit = (): AllocationResult => {
     const allocations: Allocation[] = [];
     const waiting: Process[] = [];
@@ -176,7 +173,6 @@ export default function App() {
       let bestIndex = -1;
       let bestSize = Infinity;
 
-      // Cari partisi terkecil yang cukup
       availablePartitions.forEach((part, idx) => {
         if (part.size >= process.size && part.size < bestSize) {
           bestSize = part.size;
@@ -186,12 +182,11 @@ export default function App() {
 
       if (bestIndex !== -1) {
         const part = availablePartitions[bestIndex];
-        
         const allocatedPartition: Partition = {
           ...part,
           size: process.size,
           id: `${part.id}-alloc-${Date.now()}`,
-          originalSize: part.originalSize || part.size, // Simpan ukuran asli
+          originalSize: part.originalSize || part.size,
         };
 
         allocations.push({
@@ -200,16 +195,14 @@ export default function App() {
           internalFragmentation: 0,
         });
 
-        // Split partisi jika ada sisa
         const remainingSize = part.size - process.size;
         if (remainingSize > 0) {
-          const newPartition: Partition = {
+          availablePartitions[bestIndex] = {
             id: `${part.id}-split-${Date.now()}`,
             size: remainingSize,
             originalIndex: part.originalIndex,
             parentId: part.id,
           };
-          availablePartitions[bestIndex] = newPartition;
         } else {
           availablePartitions.splice(bestIndex, 1);
         }
@@ -218,7 +211,6 @@ export default function App() {
       }
     });
 
-    // Bangun daftar partisi hasil
     partitions.forEach(originalPartition => {
       const relatedAllocs = allocations.filter(
         a => a.partition.originalIndex === originalPartition.originalIndex
@@ -227,18 +219,17 @@ export default function App() {
         p => p.originalIndex === originalPartition.originalIndex
       );
 
-      relatedAllocs.forEach(alloc => {
-        resultPartitions.push(alloc.partition);
-      });
-
-      if (relatedRemaining) {
-        resultPartitions.push(relatedRemaining);
-      }
+      relatedAllocs.forEach(alloc => resultPartitions.push(alloc.partition));
+      if (relatedRemaining) resultPartitions.push(relatedRemaining);
     });
 
     return { allocations, waiting, resultPartitions };
   };
 
+
+  // ================================
+  // WORST FIT
+  // ================================
   const worstFit = (): AllocationResult => {
     const allocations: Allocation[] = [];
     const waiting: Process[] = [];
@@ -249,7 +240,6 @@ export default function App() {
       let worstIndex = -1;
       let worstSize = -1;
 
-      // Cari partisi terbesar yang cukup
       availablePartitions.forEach((part, idx) => {
         if (part.size >= process.size && part.size > worstSize) {
           worstSize = part.size;
@@ -259,12 +249,11 @@ export default function App() {
 
       if (worstIndex !== -1) {
         const part = availablePartitions[worstIndex];
-        
         const allocatedPartition: Partition = {
           ...part,
           size: process.size,
           id: `${part.id}-alloc-${Date.now()}`,
-          originalSize: part.originalSize || part.size, // Simpan ukuran asli
+          originalSize: part.originalSize || part.size,
         };
 
         allocations.push({
@@ -273,16 +262,14 @@ export default function App() {
           internalFragmentation: 0,
         });
 
-        // Split partisi jika ada sisa
         const remainingSize = part.size - process.size;
         if (remainingSize > 0) {
-          const newPartition: Partition = {
+          availablePartitions[worstIndex] = {
             id: `${part.id}-split-${Date.now()}`,
             size: remainingSize,
             originalIndex: part.originalIndex,
             parentId: part.id,
           };
-          availablePartitions[worstIndex] = newPartition;
         } else {
           availablePartitions.splice(worstIndex, 1);
         }
@@ -291,7 +278,6 @@ export default function App() {
       }
     });
 
-    // Bangun daftar partisi hasil
     partitions.forEach(originalPartition => {
       const relatedAllocs = allocations.filter(
         a => a.partition.originalIndex === originalPartition.originalIndex
@@ -300,21 +286,13 @@ export default function App() {
         p => p.originalIndex === originalPartition.originalIndex
       );
 
-      relatedAllocs.forEach(alloc => {
-        resultPartitions.push(alloc.partition);
-      });
-
-      if (relatedRemaining) {
-        resultPartitions.push(relatedRemaining);
-      }
+      relatedAllocs.forEach(alloc => resultPartitions.push(alloc.partition));
+      if (relatedRemaining) resultPartitions.push(relatedRemaining);
     });
 
     return { allocations, waiting, resultPartitions };
   };
 
-  // -------------------------
-  // HITUNG SEKALI SAJA (useMemo)
-  // -------------------------
   const ff = useMemo(firstFit, [processes, partitions]);
   const bf = useMemo(bestFit, [processes, partitions]);
   const wf = useMemo(worstFit, [processes, partitions]);
@@ -327,8 +305,7 @@ export default function App() {
             Simulator Alokasi Memori Kontigu
           </h1>
           <p className="text-gray-600 text-sm sm:text-base">
-            Simulasi algoritma First-Fit, Best-Fit, dan
-            Worst-Fit
+            Simulasi algoritma First-Fit, Best-Fit, dan Worst-Fit
           </p>
         </div>
 
@@ -338,6 +315,7 @@ export default function App() {
             onAddProcess={addProcess}
             onRemoveProcess={removeProcess}
           />
+
           <PartitionInputForm
             partitions={partitions}
             onAddPartition={addPartition}
@@ -352,18 +330,13 @@ export default function App() {
               Visualisasi dan perbandingan hasil metode alokasi
             </CardDescription>
           </CardHeader>
+
           <CardContent>
             <Tabs defaultValue="first-fit" className="w-full">
               <TabsList className="grid w-full grid-cols-3 h-auto">
-                <TabsTrigger value="first-fit" className="text-xs sm:text-sm px-2 sm:px-4 py-2">
-                  First-Fit
-                </TabsTrigger>
-                <TabsTrigger value="best-fit" className="text-xs sm:text-sm px-2 sm:px-4 py-2">
-                  Best-Fit
-                </TabsTrigger>
-                <TabsTrigger value="worst-fit" className="text-xs sm:text-sm px-2 sm:px-4 py-2">
-                  Worst-Fit
-                </TabsTrigger>
+                <TabsTrigger value="first-fit">First-Fit</TabsTrigger>
+                <TabsTrigger value="best-fit">Best-Fit</TabsTrigger>
+                <TabsTrigger value="worst-fit">Worst-Fit</TabsTrigger>
               </TabsList>
 
               <TabsContent value="first-fit">
