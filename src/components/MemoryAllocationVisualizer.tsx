@@ -9,7 +9,7 @@ interface MemoryAllocationVisualizerProps {
   allocations: Allocation[];
   waiting: Process[];
   partitions: Partition[];
-  resultPartitions: Partition[]; // Partisi hasil split
+  resultPartitions: Partition[];
   processes: Process[];
 }
 
