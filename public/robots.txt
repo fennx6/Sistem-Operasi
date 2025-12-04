@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://mem-allocation.vercel.app/sitemap.xml
